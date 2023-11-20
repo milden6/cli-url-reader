@@ -52,14 +52,17 @@ func main() {
 	}
 
 	urlQueue := make(chan string, queueSize)
+
 	wg := sync.WaitGroup{}
 
 	// run workers
 	for i := 0; i < maxWorkers; i++ {
+		wg.Add(1)
 		go func() {
+			defer wg.Done()
+
 			for url := range urlQueue {
 				doRequest(url)
-				wg.Done()
 			}
 		}()
 	}
@@ -78,9 +81,9 @@ func main() {
 	scanner := bufio.NewScanner(f)
 
 	for scanner.Scan() {
-		wg.Add(1)
 		urlQueue <- scanner.Text()
 	}
+	close(urlQueue)
 
 	if err := scanner.Err(); err != nil {
 		log.Fatal(err)
@@ -98,7 +101,7 @@ func doRequest(url string) {
 	startProcessing := time.Now()
 
 	for i := 0; i < maxRetries; i++ {
-		res, err := http.Get(url)
+		res, err := httpClient.Get(url)
 		if err != nil {
 			log.Printf("failed to send request with url %v: err %v \n", url, err)
 
