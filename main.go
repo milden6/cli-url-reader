@@ -17,6 +17,8 @@ import (
 const (
 	queueSize      = 100
 	requestTimeout = time.Second * 5
+
+	retryDelay = time.Millisecond * 200
 )
 
 var (
@@ -100,19 +102,28 @@ func doRequest(url string) {
 
 	startProcessing := time.Now()
 
-	for i := 0; i < maxRetries; i++ {
+	// do retries
+	attempt := 0
+	for {
+		attempt++
+
+		if attempt > maxRetries {
+			log.Printf("failed all retries for url: %v\n", url)
+			return
+		}
+
 		res, err := httpClient.Get(url)
 		if err != nil {
 			log.Printf("failed to send request with url %v: err %v \n", url, err)
 
-			time.Sleep(time.Millisecond * 300)
+			time.Sleep(retryDelay)
 			continue
 		}
 
 		if res.StatusCode != http.StatusOK {
 			log.Printf("response failed with status code: %d and url: %v\n", res.StatusCode, url)
 
-			time.Sleep(time.Millisecond * 300)
+			time.Sleep(retryDelay)
 			continue
 		}
 
@@ -124,11 +135,6 @@ func doRequest(url string) {
 
 		if err != nil {
 			log.Printf("failed to read response for url: %v\n", url)
-			return
-		}
-
-		if i == maxRetries {
-			log.Printf("failed all retries for url: %v\n", url)
 			return
 		}
 
